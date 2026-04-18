@@ -1,142 +1,170 @@
-# 🛍️ E-commerce Platform (Spring Boot + Thymeleaf)
+# 🛒 SuperTiles E-Commerce Platform
 
-A **full-stack e-commerce web application** built with **Spring Boot**, **Thymeleaf**, and **MySQL**, designed to provide a seamless online shopping experience. This project follows industry best practices with a modular backend, secure authentication, and responsive UI.
+A production-grade **E-commerce Backend System** built using **Spring Boot**, showcasing real-world backend engineering concepts such as **JWT authentication, Redis caching, idempotent payment handling, and Dockerized deployment**.
+
+Originally developed as a full-stack application using **Thymeleaf**, this project has been upgraded into a **headless, scalable REST API architecture**.
 
 ---
 
-## 🚀 Features
+## 🚀 Key Highlights
 
-* 🛒 **Product Management** – Add, update, delete, and list products.
-* 👤 **User Authentication** – Secure login, registration, and role-based access.
-* 🧾 **Shopping Cart** – Add/remove products with real-time cart updates.
-* 💳 **Order Management** – Place orders, track status, and view history.
-* 🎨 **Responsive UI** – Built using Thymeleaf templates with Tailwind CSS.
-* ⚡ **Spring Boot REST APIs** – Clean architecture and well-structured endpoints.
+* 🔐 JWT-based Authentication & Role-Based Access Control (RBAC)
+* ⚡ Redis Caching for high-performance product retrieval
+* 💳 Razorpay Payment Gateway Integration
+* 🛡️ Idempotency Handling (Prevents duplicate transactions)
+* 🧱 Modular Monolith Architecture (Industry-style design)
+* 🐳 Fully Dockerized (MySQL + Redis + Backend)
+* 📦 RESTful APIs with validation & structured error handling
+
+---
+
+## 🧠 Architecture Overview
+
+The application follows a **Modular Monolith Architecture**, dividing the system into domain-specific modules:
+
+```id="arch2"
+common     → shared configs, exceptions, idempotency  
+security   → JWT + Spring Security  
+user       → authentication & roles  
+product    → product catalog + caching  
+order      → order management  
+payment    → Razorpay integration  
+```
+
+---
+
+## 🔄 End-to-End Flow
+
+```id="flow2"
+Register/Login → JWT Token  
+→ Fetch Products (Redis Cached)  
+→ Create Order (Idempotency Key)  
+→ Razorpay Payment  
+→ Payment Verification → Order marked PAID  
+```
 
 ---
 
 ## 🛠️ Tech Stack
 
-* **Backend:** Spring Boot, Spring Security, Hibernate/JPA
-* **Frontend:** Thymeleaf, Tailwind CSS
-* **Database:** MySQL
-* **Build Tool:** Maven
-* **Version Control:** Git & GitHub
-* **Deployment Ready For:** Docker, AWS Elastic Beanstalk / Kubernetes
+### Backend
+
+* Java 17, Spring Boot 3
+* Spring Security + JWT
+* Hibernate / JPA
+
+### Database & Caching
+
+* MySQL
+* Redis
+
+### DevOps
+
+* Docker & Docker Compose
+
+### Legacy Frontend (Initial Version)
+
+* Thymeleaf
+* Tailwind CSS
 
 ---
 
-## 📂 Project Structure
+## 🧪 API Endpoints
 
-```
-ecommerce-springboot/
-├── src/main/java/com/example/ecommerce   # Java source code
-│   ├── controller/                      # Web controllers
-│   ├── model/                           # Entity classes
-│   ├── repository/                      # Data access
-│   ├── service/                         # Business logic
-│   └── EcommerceApplication.java        # Main entry point
-│
-├── src/main/resources/
-│   ├── static/                          # CSS, JS, images
-│   ├── templates/                       # Thymeleaf HTML templates
-│   └── application.properties           # App config (ignored in Git)
-│
-├── pom.xml                              # Maven dependencies
-└── README.md                            # Project documentation
-```
+| Method | Endpoint             | Description                   |
+| ------ | -------------------- | ----------------------------- |
+| POST   | /api/auth/register   | Register user                 |
+| POST   | /api/auth/login      | Login & get JWT               |
+| GET    | /api/products        | Get products (cached)         |
+| POST   | /api/products        | Create product (ADMIN/SELLER) |
+| POST   | /api/orders          | Create order (Idempotent)     |
+| POST   | /api/payments/verify | Verify payment                |
 
 ---
 
-## ⚙️ Setup Instructions
+## 🛡️ Idempotency Example
 
-### 1. Clone the Repository
-
-```bash
-git clone https://github.com/<your-username>/ecommerce-springboot.git
-cd ecommerce-springboot
+```id="idem2"
+POST /api/orders
+Header: Idempotency-Key: unique-key-123
 ```
 
-### 2. Configure the Database
-
-* Create a MySQL database (e.g., `ecommerce_db`)
-* Update `src/main/resources/application.properties` with your DB credentials:
-
-```properties
-spring.datasource.url=jdbc:mysql://localhost:3306/ecommerce_db
-spring.datasource.username=your_username
-spring.datasource.password=your_password
-spring.jpa.hibernate.ddl-auto=update
-```
-
-### 3. Build & Run
-
-```bash
-mvn clean install
-mvn spring-boot:run
-```
-
-### 4. Access Application
-
-Open [http://localhost:80](http://localhost:80) in your browser.
+Duplicate request → **409 Conflict**
 
 ---
 
-## 🔒 Environment Variables
+## ⚡ Redis Caching
 
-This project uses environment variables (via `.env` or config service) for sensitive data:
-
-* `DB_USERNAME`
-* `DB_PASSWORD`
-* `JWT_SECRET`
-* `SPRING_PROFILES_ACTIVE`
-
-> ⚠️ Do **not** commit sensitive info (like `application.properties`) to GitHub.
+* Uses `@Cacheable` for product retrieval
+* Cache invalidated on product updates
+* Reduces database load and improves performance
 
 ---
 
-## 🧪 Testing
+## 🐳 Run with Docker
 
-Run unit tests with:
-
-```bash
-mvn test
+```bash id="run2"
+docker-compose up --build
 ```
 
----
+Access:
 
-## 📦 Deployment
-
-You can containerize and deploy using Docker:
-
-```bash
-docker build -t ecommerce-springboot .
-docker run -p 8080:8080 ecommerce-springboot
-```
-
-Or deploy to **AWS**, **Heroku**, or **Kubernetes** with minor config changes.
+* API → http://localhost:8080
+* Swagger → http://localhost:8080/swagger-ui.html
 
 ---
 
-## 🤝 Contributing
+## 📬 Testing
 
-Contributions are welcome!
+* Use Postman collection included in repo
+* Test complete flow:
 
-1. Fork the repo
-2. Create a new branch (`feature/your-feature`)
-3. Commit your changes
-4. Open a Pull Request
+  * Auth → Products → Orders → Payment
+
+---
+
+## 📂 Project Evolution
+
+### 🔹 Version 1 (Initial)
+
+* Full-stack app with Thymeleaf
+* Basic CRUD and authentication
+
+### 🔹 Version 2 (Current - Production Style)
+
+* Headless REST API
+* JWT authentication
+* Redis caching
+* Payment integration
+* Dockerized infrastructure
+
+---
+
+## 🧠 Key Concepts Demonstrated
+
+* Stateless Authentication (JWT)
+* Role-Based Access Control
+* ACID Transactions (@Transactional)
+* Distributed Caching (Redis)
+* Idempotent API Design
+* Secure Payment Verification
+* Containerized Deployment
+
+---
+
+## 📌 Resume Description
+
+> Developed a production-grade e-commerce backend using Spring Boot with JWT authentication, Redis caching, idempotent payment handling via Razorpay, and Dockerized deployment with MySQL and Redis.
 
 ---
 
 ## 🔮 Future Enhancements
 
-* ✅ Integration with Payment Gateway (Razorpay/Stripe)
-* ✅ Product Search & Filters
-* ✅ Wishlist & Favorites
-* ✅ Email Notifications for Orders
-* ✅ Admin Dashboard with Analytics
+* React frontend integration
+* Microservices architecture
+* CI/CD pipeline (GitHub Actions)
+* Rate limiting
 
 ---
 
-💡 *Built with passion using Spring Boot & Thymeleaf.*
+💡 *Built with strong focus on backend engineering and real-world system design.*
