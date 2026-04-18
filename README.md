@@ -152,12 +152,6 @@ Access:
 
 ---
 
-## 📌 Resume Description
-
-> Developed a production-grade e-commerce backend using Spring Boot with JWT authentication, Redis caching, idempotent payment handling via Razorpay, and Dockerized deployment with MySQL and Redis.
-
----
-
 ## 🔮 Future Enhancements
 
 * React frontend integration
