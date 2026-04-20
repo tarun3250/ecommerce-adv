@@ -12,7 +12,9 @@ import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 public class PaymentService {
 
@@ -54,9 +56,11 @@ public class PaymentService {
             if (isValid) {
                 paymentDetails.setStatus("SUCCESS");
                 order.setStatus(OrderStatus.PAID);
+                log.info("Payment verified successfully for Razorpay Order: {}", request.getRazorpayOrderId());
             } else {
                 paymentDetails.setStatus("FAILED");
                 order.setStatus(OrderStatus.FAILED);
+                log.warn("Payment verification failed (Invalid signature) for Razorpay Order: {}", request.getRazorpayOrderId());
             }
 
             orderRepository.save(order);
@@ -67,6 +71,7 @@ public class PaymentService {
             order.setStatus(OrderStatus.FAILED);
             orderRepository.save(order);
             paymentRepository.save(paymentDetails);
+            log.error("Exception during payment verification for Razorpay Order: {}", request.getRazorpayOrderId(), e);
             throw new BadRequestException("Payment verification failed: " + e.getMessage());
         }
     }

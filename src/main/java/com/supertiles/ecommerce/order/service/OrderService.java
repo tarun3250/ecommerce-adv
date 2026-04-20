@@ -16,10 +16,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
 import java.util.List;
 
+@Slf4j
 @Service
 public class OrderService {
 
@@ -91,10 +93,13 @@ public class OrderService {
             order.setRazorpayOrderId(razorpayOrder.get("id"));
 
         } catch (Exception e) {
+            log.error("Failed to create Razorpay order for user: {}", user.getEmail(), e);
             throw new RuntimeException("Error while creating Razorpay order: " + e.getMessage());
         }
 
-        return orderRepository.save(order);
+        Order savedOrder = orderRepository.save(order);
+        log.info("Order created successfully - OrderId: {}, UserId: {}, Amount: {}", savedOrder.getId(), user.getId(), totalAmount);
+        return savedOrder;
     }
 
     public List<Order> getMyOrders() {
