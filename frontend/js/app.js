@@ -1,11 +1,11 @@
 const API_BASE = '/api';
+
+// Safe Parsing
 function safeJSONParse(item, fallback) {
     try {
         const val = localStorage.getItem(item);
         return val && val !== 'undefined' ? JSON.parse(val) : fallback;
-    } catch (e) {
-        return fallback;
-    }
+    } catch (e) { return fallback; }
 }
 
 let state = {
@@ -17,20 +17,15 @@ let state = {
 
 // DOM Elements
 const appContainer = document.getElementById('app-container');
-const navLogin = document.getElementById('nav-login-item');
-const navUser = document.getElementById('nav-user-item');
-const navUsername = document.getElementById('nav-username');
-const navAdmin = document.getElementById('nav-admin-item');
-const navOrders = document.getElementById('nav-orders-item');
+const cartDrawer = document.getElementById('cart-drawer');
+const cartOverlay = document.getElementById('cart-drawer-overlay');
 const cartCount = document.getElementById('cart-count');
-
+const cartItemsContainer = document.getElementById('cart-items-container');
+const cartTotalPrice = document.getElementById('cart-total-price');
 const authModal = document.getElementById('auth-modal');
 const productModal = document.getElementById('product-modal');
-const loginForm = document.getElementById('login-form');
-const registerForm = document.getElementById('register-form');
-const productForm = document.getElementById('product-form');
 
-// Initialization
+// Init
 function init() {
     updateNav();
     renderHome();
@@ -38,11 +33,16 @@ function init() {
 }
 
 function updateNav() {
+    const navLogin = document.getElementById('nav-login-item');
+    const navUser = document.getElementById('nav-user-item');
+    const navOrders = document.getElementById('nav-orders-item');
+    const navAdmin = document.getElementById('nav-admin-item');
+    
     if (state.user && state.token) {
         navLogin.classList.add('hidden');
         navUser.classList.remove('hidden');
         navOrders.classList.remove('hidden');
-        navUsername.textContent = state.user.email;
+        document.getElementById('nav-username').innerHTML = `<i class="fas fa-user-circle"></i> ${state.user.name || state.user.email.split('@')[0]}`;
         
         if (state.user.role === 'SELLER' || state.user.role === 'ADMIN') {
             navAdmin.classList.remove('hidden');
@@ -55,75 +55,111 @@ function updateNav() {
         navAdmin.classList.add('hidden');
         navOrders.classList.add('hidden');
     }
-    
-    const count = state.cart.reduce((acc, item) => acc + item.quantity, 0);
-    cartCount.textContent = count;
-}
-
-function closeModal(id) {
-    document.getElementById(id).classList.add('hidden');
-}
-
-function setupEventListeners() {
-    document.getElementById('nav-home').addEventListener('click', (e) => { e.preventDefault(); renderHome(); });
-    document.getElementById('nav-cart').addEventListener('click', (e) => { e.preventDefault(); renderCart(); });
-    document.getElementById('nav-orders').addEventListener('click', (e) => { e.preventDefault(); renderOrders(); });
-    document.getElementById('nav-admin').addEventListener('click', (e) => { e.preventDefault(); renderAdmin(); });
-    document.querySelector('.logo').addEventListener('click', renderHome);
-    
-    document.getElementById('nav-login').addEventListener('click', (e) => {
-        e.preventDefault();
-        authModal.classList.remove('hidden');
-    });
-    
-    document.getElementById('nav-logout').addEventListener('click', (e) => {
-        e.preventDefault();
-        logout();
-    });
-
-    document.getElementById('tab-login').addEventListener('click', (e) => {
-        e.target.classList.add('active');
-        document.getElementById('tab-register').classList.remove('active');
-        loginForm.classList.remove('hidden');
-        registerForm.classList.add('hidden');
-        document.getElementById('auth-error').textContent = '';
-    });
-
-    document.getElementById('tab-register').addEventListener('click', (e) => {
-        e.target.classList.add('active');
-        document.getElementById('tab-login').classList.remove('active');
-        registerForm.classList.remove('hidden');
-        loginForm.classList.add('hidden');
-        document.getElementById('auth-error').textContent = '';
-    });
-
-    loginForm.addEventListener('submit', handleLogin);
-    registerForm.addEventListener('submit', handleRegister);
-    productForm.addEventListener('submit', handleSaveProduct);
+    updateCartUI();
 }
 
 function getAuthHeaders() {
     const headers = { 'Content-Type': 'application/json' };
-    if (state.token) {
-        headers['Authorization'] = `Bearer ${state.token}`;
-    }
+    if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
     return headers;
+}
+
+// Toast Notifications
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    
+    let icon = 'info-circle';
+    if(type === 'success') icon = 'check-circle';
+    if(type === 'error') icon = 'exclamation-circle';
+    
+    toast.innerHTML = `<i class="fas fa-${icon}"></i> <span>${message}</span>`;
+    container.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.classList.add('hiding');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+// Event Listeners
+function setupEventListeners() {
+    // Nav Routing
+    document.getElementById('nav-home').addEventListener('click', (e) => { e.preventDefault(); setActiveNav('nav-home'); renderHome(); });
+    document.getElementById('nav-orders').addEventListener('click', (e) => { e.preventDefault(); setActiveNav('nav-orders'); renderOrders(); });
+    document.getElementById('nav-admin').addEventListener('click', (e) => { e.preventDefault(); setActiveNav('nav-admin'); renderAdmin(); });
+    document.getElementById('nav-logo').addEventListener('click', () => { setActiveNav('nav-home'); renderHome(); });
+    
+    // Auth & User
+    document.getElementById('nav-login-item').addEventListener('click', () => authModal.classList.remove('hidden'));
+    document.getElementById('nav-logout').addEventListener('click', (e) => { e.preventDefault(); logout(); });
+    
+    // Cart Drawer
+    document.getElementById('nav-cart').addEventListener('click', openCart);
+    document.getElementById('close-cart').addEventListener('click', closeCart);
+    cartOverlay.addEventListener('click', closeCart);
+    document.getElementById('btn-checkout').addEventListener('click', checkout);
+    
+    // Auth Tabs
+    document.querySelectorAll('.auth-tab').forEach(tab => {
+        tab.addEventListener('click', (e) => {
+            document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+            e.target.classList.add('active');
+            if(e.target.dataset.tab === 'login') {
+                document.getElementById('login-form').classList.remove('hidden');
+                document.getElementById('register-form').classList.add('hidden');
+            } else {
+                document.getElementById('register-form').classList.remove('hidden');
+                document.getElementById('login-form').classList.add('hidden');
+            }
+            document.getElementById('auth-error').textContent = '';
+        });
+    });
+
+    // Forms
+    document.getElementById('login-form').addEventListener('submit', handleLogin);
+    document.getElementById('register-form').addEventListener('submit', handleRegister);
+    document.getElementById('product-form').addEventListener('submit', handleSaveProduct);
+}
+
+function setActiveNav(id) {
+    document.querySelectorAll('.nav-links a').forEach(a => a.classList.remove('active'));
+    if(id !== 'nav-logo') document.getElementById(id).classList.add('active');
+}
+
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+function openCart() { cartDrawer.classList.add('active'); cartOverlay.classList.add('active'); }
+function closeCart() { cartDrawer.classList.remove('active'); cartOverlay.classList.remove('active'); }
+
+// Helpers for realistic images based on product ID
+function getTileImage(id) {
+    const images = [
+        'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=500&q=80',
+        'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=500&q=80',
+        'https://images.unsplash.com/photo-1615873968403-89e068629265?auto=format&fit=crop&w=500&q=80',
+        'https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=500&q=80',
+        'https://images.unsplash.com/photo-1600566753376-12c8ab7fb75b?auto=format&fit=crop&w=500&q=80'
+    ];
+    return images[id % images.length];
 }
 
 // ==================== VIEWS ====================
 
 async function renderHome() {
     appContainer.innerHTML = `
-        <div class="hero glass animate-fade-in">
-            <h2>Premium Quality Tiles</h2>
-            <p>Elevate your space with our curated collection of stunning, durable tiles.</p>
-            <button class="btn primary" onclick="document.getElementById('products-section').scrollIntoView({behavior: 'smooth'})">Shop Now</button>
+        <div class="hero animate-fade-up">
+            <div class="hero-content glass-panel" style="padding: 3rem; background: rgba(9,9,11,0.6);">
+                <h2>Redefine Your Space</h2>
+                <p>Discover our exclusive collection of premium ceramic and porcelain tiles, designed to bring elegance and durability to modern homes.</p>
+                <button class="btn btn-primary btn-glow" onclick="document.getElementById('products-section').scrollIntoView({behavior: 'smooth'})">Explore Collection <i class="fas fa-arrow-down"></i></button>
+            </div>
         </div>
         
-        <div id="products-section" class="products-section">
-            <h3 style="font-size: 2rem; margin-bottom: 2rem;">Featured Products</h3>
+        <div id="products-section">
+            <h3 class="section-title animate-fade-up">Featured Collection</h3>
             <div id="product-grid" class="product-grid">
-                <div style="text-align:center; grid-column: 1/-1;">Loading products...</div>
+                ${[1,2,3,4].map(i => `<div class="product-card skeleton" style="height:400px;"></div>`).join('')}
             </div>
         </div>
     `;
@@ -132,92 +168,56 @@ async function renderHome() {
         const response = await fetch(`${API_BASE}/products`, { headers: getAuthHeaders() });
         if (response.status === 403 || response.status === 401) {
             document.getElementById('product-grid').innerHTML = `
-                <div style="grid-column: 1/-1; text-align:center;">
-                    <p style="color: var(--error); margin-bottom: 1rem;">Authentication required to view products.</p>
-                    <button class="btn primary" onclick="document.getElementById('nav-login').click()">Login / Register</button>
+                <div style="grid-column: 1/-1; text-align:center; padding: 4rem;" class="glass-panel animate-fade-up">
+                    <i class="fas fa-lock" style="font-size: 3rem; color: var(--error); margin-bottom: 1rem;"></i>
+                    <h3 style="margin-bottom: 1rem;">Authentication Required</h3>
+                    <p style="color: var(--text-secondary); margin-bottom: 2rem;">Please sign in to view our exclusive product catalog.</p>
+                    <button class="btn btn-primary" onclick="authModal.classList.remove('hidden')">Sign In Now</button>
                 </div>
             `;
             return;
         }
-        const data = await response.json();
         
+        const data = await response.json();
         if (data.success) {
             state.products = data.data.content;
             const grid = document.getElementById('product-grid');
             if (!state.products.length) {
-                grid.innerHTML = `<p>No products found.</p>`;
+                grid.innerHTML = `<div class="glass-panel" style="grid-column:1/-1; padding:3rem; text-align:center;">No products available at the moment.</div>`;
                 return;
             }
 
             grid.innerHTML = state.products.map((product, index) => `
-                <div class="product-card glass animate-fade-in" style="animation-delay: ${index * 0.1}s">
-                    <div class="product-image"><span>🧱</span></div>
+                <div class="product-card animate-fade-up" style="animation-delay: ${index * 0.1}s">
+                    <div class="product-image" style="background-image: url('${getTileImage(product.id)}')">
+                        ${product.stock === 0 ? '<span class="product-badge" style="background:var(--error)">Sold Out</span>' : ''}
+                    </div>
                     <div class="product-info">
+                        <span class="product-brand">${product.brand || 'Premium'}</span>
                         <h3>${product.name}</h3>
-                        <p style="font-size:0.8rem; color:var(--text-muted)">Brand: ${product.brand || 'N/A'} | Size: ${product.size || 'N/A'}</p>
-                        <p>${product.description || 'Premium quality tile for modern interiors.'}</p>
-                        <p style="font-size:0.8rem; color:${product.stock > 0 ? 'var(--success)' : 'var(--error)'}">
-                            ${product.stock > 0 ? 'In Stock: ' + product.stock : 'Out of Stock'}
-                        </p>
-                        <div class="product-footer" style="margin-top: 1rem;">
+                        <p class="product-desc">${product.description || 'Premium quality material designed for modern aesthetics.'}</p>
+                        <div class="product-footer">
                             <span class="product-price">₹${product.price}</span>
-                            <button class="btn primary" ${product.stock === 0 ? 'disabled' : ''} onclick="addToCart(${product.id})">Add to Cart</button>
+                            <button class="btn btn-primary" ${product.stock === 0 ? 'disabled' : ''} onclick="addToCart(${product.id})">
+                                <i class="fas fa-plus"></i> Add
+                            </button>
                         </div>
                     </div>
                 </div>
             `).join('');
         }
     } catch (err) {
-        document.getElementById('product-grid').innerHTML = `<div class="error-msg">Network error. Backend not reachable.</div>`;
+        document.getElementById('product-grid').innerHTML = `<div class="error-msg">Failed to connect to server.</div>`;
     }
-}
-
-function renderCart() {
-    if (state.cart.length === 0) {
-        appContainer.innerHTML = `
-            <div class="glass animate-fade-in" style="padding: 4rem; text-align: center;">
-                <h2>Your Cart is Empty</h2>
-                <p style="margin: 2rem 0; color: var(--text-muted)">Looks like you haven't added any products yet.</p>
-                <button class="btn primary" onclick="renderHome()">Continue Shopping</button>
-            </div>
-        `;
-        return;
-    }
-
-    const total = state.cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-
-    appContainer.innerHTML = `
-        <h2 style="margin-bottom: 2rem; font-size: 2rem;" class="animate-fade-in">Shopping Cart</h2>
-        <div class="cart-list animate-fade-in">
-            ${state.cart.map(item => `
-                <div class="cart-item glass">
-                    <div style="display:flex; align-items:center; gap: 1rem;">
-                        <div style="font-size: 2rem;">🧱</div>
-                        <div>
-                            <h3>${item.name}</h3>
-                            <p style="color: var(--text-muted)">₹${item.price} x ${item.quantity}</p>
-                        </div>
-                    </div>
-                    <div style="font-weight: bold; font-size: 1.2rem;">
-                        ₹${item.price * item.quantity}
-                    </div>
-                    <button class="btn secondary" style="padding: 0.5rem 1rem;" onclick="removeFromCart(${item.id})">Remove</button>
-                </div>
-            `).join('')}
-        </div>
-        <div class="cart-total animate-fade-in">Total: ₹${total}</div>
-        <div style="text-align: right;" class="animate-fade-in">
-            <button class="btn primary" onclick="checkout()">Proceed to Checkout</button>
-        </div>
-    `;
 }
 
 async function renderOrders() {
-    if (!state.token) return;
-    
     appContainer.innerHTML = `
-        <h2 style="margin-bottom: 2rem; font-size: 2rem;" class="animate-fade-in">My Orders</h2>
-        <div id="orders-list">Loading orders...</div>
+        <h2 class="section-title animate-fade-up">Order History</h2>
+        <div id="orders-list" class="animate-fade-up">
+            <div class="skeleton" style="height: 100px; margin-bottom: 1rem;"></div>
+            <div class="skeleton" style="height: 100px; margin-bottom: 1rem;"></div>
+        </div>
     `;
 
     try {
@@ -226,22 +226,37 @@ async function renderOrders() {
         
         if (data.success) {
             const orders = data.data;
+            const list = document.getElementById('orders-list');
             if (orders.length === 0) {
-                document.getElementById('orders-list').innerHTML = `<p>No past orders found.</p>`;
+                list.innerHTML = `<div class="data-card text-center"><p>You haven't placed any orders yet.</p></div>`;
                 return;
             }
             
-            document.getElementById('orders-list').innerHTML = orders.map(order => `
-                <div class="glass animate-fade-in" style="padding: 1.5rem; margin-bottom: 1rem;">
-                    <div style="display:flex; justify-content: space-between; margin-bottom: 1rem;">
-                        <h3>Order #${order.id}</h3>
-                        <span style="font-weight:bold; color: ${order.status === 'PAID' ? 'var(--success)' : 'var(--error)'}">${order.status}</span>
+            list.innerHTML = orders.map(order => `
+                <div class="data-card animate-fade-up">
+                    <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;">
+                        <div>
+                            <h3 style="margin-bottom:0.25rem;">Order #${order.id}</h3>
+                            <span style="color:var(--text-secondary); font-size:0.9rem;">
+                                <i class="far fa-calendar-alt"></i> ${new Date(order.createdAt).toLocaleDateString()}
+                            </span>
+                        </div>
+                        <span class="status-badge ${order.status === 'PAID' ? 'status-paid' : 'status-failed'}">
+                            ${order.status}
+                        </span>
                     </div>
-                    <p style="color: var(--text-muted); margin-bottom: 1rem;">Date: ${new Date(order.createdAt).toLocaleString()}</p>
-                    <div style="border-top: 1px solid var(--border-color); padding-top: 1rem;">
-                        ${order.items.map(item => `<p>🧱 ${item.productName} - Qty: ${item.quantity} (₹${item.price})</p>`).join('')}
+                    <div style="display:grid; gap:1rem; margin-bottom:1.5rem;">
+                        ${order.items.map(item => `
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <div style="display:flex; align-items:center; gap:1rem;">
+                                    <div style="width:40px; height:40px; border-radius:8px; background:url('${getTileImage(item.productId)}') center/cover;"></div>
+                                    <span>${item.productName} <span style="color:var(--text-secondary)">x${item.quantity}</span></span>
+                                </div>
+                                <span>₹${item.price * item.quantity}</span>
+                            </div>
+                        `).join('')}
                     </div>
-                    <div style="text-align: right; font-weight: bold; font-size: 1.2rem; margin-top: 1rem;">
+                    <div style="text-align: right; font-size: 1.25rem; font-weight:700; color: var(--primary);">
                         Total: ₹${order.totalAmount}
                     </div>
                 </div>
@@ -253,20 +268,18 @@ async function renderOrders() {
 }
 
 async function renderAdmin() {
-    if (!state.token || (state.user.role !== 'SELLER' && state.user.role !== 'ADMIN')) return;
-    
     appContainer.innerHTML = `
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 2rem;" class="animate-fade-in">
-            <h2 style="font-size: 2rem;">Seller Dashboard</h2>
-            <button class="btn primary" onclick="openProductModal()">+ Add New Product</button>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 2rem;" class="animate-fade-up">
+            <h2 class="section-title" style="margin:0;">Seller Dashboard</h2>
+            <button class="btn btn-primary btn-glow" onclick="openProductModal()"><i class="fas fa-plus"></i> New Product</button>
         </div>
-        <div id="admin-product-list" class="animate-fade-in">Loading products...</div>
+        <div class="data-card animate-fade-up" style="padding: 0; overflow:hidden;">
+            <div id="admin-product-list" style="overflow-x:auto;">
+                <div style="padding: 2rem;"><div class="skeleton" style="height: 200px;"></div></div>
+            </div>
+        </div>
     `;
     
-    fetchProductsForAdmin();
-}
-
-async function fetchProductsForAdmin() {
     try {
         const res = await fetch(`${API_BASE}/products`, { headers: getAuthHeaders() });
         const data = await res.json();
@@ -275,31 +288,40 @@ async function fetchProductsForAdmin() {
             const products = data.data.content;
             const list = document.getElementById('admin-product-list');
             if (products.length === 0) {
-                list.innerHTML = `<p>No products available.</p>`;
+                list.innerHTML = `<div style="padding:3rem; text-align:center; color:var(--text-secondary);">No products in inventory. Start by adding one.</div>`;
                 return;
             }
             
             list.innerHTML = `
-                <table style="width: 100%; text-align: left; border-collapse: collapse;">
-                    <thead>
-                        <tr style="border-bottom: 1px solid var(--border-color);">
-                            <th style="padding: 1rem;">ID</th>
-                            <th style="padding: 1rem;">Name</th>
-                            <th style="padding: 1rem;">Price</th>
-                            <th style="padding: 1rem;">Stock</th>
-                            <th style="padding: 1rem;">Actions</th>
+                <table>
+                    <thead style="background: rgba(255,255,255,0.02);">
+                        <tr>
+                            <th>Product</th>
+                            <th>Brand & Size</th>
+                            <th>Price</th>
+                            <th>Stock</th>
+                            <th style="text-align:right;">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         ${products.map(p => `
-                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-                                <td style="padding: 1rem;">${p.id}</td>
-                                <td style="padding: 1rem;">${p.name}</td>
-                                <td style="padding: 1rem;">₹${p.price}</td>
-                                <td style="padding: 1rem;">${p.stock}</td>
-                                <td style="padding: 1rem;">
-                                    <button class="btn secondary" style="padding: 0.25rem 0.5rem; font-size: 0.9rem;" onclick='openProductModal(${JSON.stringify(p).replace(/'/g, "&#39;")})'>Edit</button>
-                                    <button class="btn secondary" style="padding: 0.25rem 0.5rem; font-size: 0.9rem; color: var(--error); border-color: var(--error);" onclick="deleteProduct(${p.id})">Delete</button>
+                            <tr>
+                                <td>
+                                    <div style="display:flex; align-items:center; gap:1rem;">
+                                        <div style="width:40px; height:40px; border-radius:8px; background:url('${getTileImage(p.id)}') center/cover;"></div>
+                                        <span style="font-weight:500;">${p.name}</span>
+                                    </div>
+                                </td>
+                                <td style="color:var(--text-secondary);">${p.brand || '-'} <br/> ${p.size || '-'}</td>
+                                <td style="font-weight:600;">₹${p.price}</td>
+                                <td>
+                                    <span class="status-badge" style="background:${p.stock > 0 ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)'}; color:${p.stock > 0 ? 'var(--success)' : 'var(--error)'}">
+                                        ${p.stock} units
+                                    </span>
+                                </td>
+                                <td style="text-align:right;">
+                                    <button class="btn btn-outline" style="padding: 0.4rem 0.8rem; margin-right:0.5rem;" onclick='openProductModal(${JSON.stringify(p).replace(/'/g, "&#39;")})'><i class="fas fa-edit"></i></button>
+                                    <button class="btn btn-outline" style="padding: 0.4rem 0.8rem; color:var(--error); border-color:rgba(239,68,68,0.3);" onclick="deleteProduct(${p.id})"><i class="fas fa-trash"></i></button>
                                 </td>
                             </tr>
                         `).join('')}
@@ -308,11 +330,48 @@ async function fetchProductsForAdmin() {
             `;
         }
     } catch(e) {
-        document.getElementById('admin-product-list').innerHTML = `<p class="error-msg">Error loading products.</p>`;
+        document.getElementById('admin-product-list').innerHTML = `<p class="error-msg" style="padding:2rem;">Error loading inventory.</p>`;
     }
 }
 
-// ==================== LOGIC ====================
+// ==================== CART & CHECKOUT ====================
+
+function updateCartUI() {
+    const count = state.cart.reduce((sum, item) => sum + item.quantity, 0);
+    cartCount.textContent = count;
+    
+    if (state.cart.length === 0) {
+        cartItemsContainer.innerHTML = `
+            <div style="text-align:center; padding: 3rem 0; color:var(--text-secondary);">
+                <i class="fas fa-shopping-bag" style="font-size: 3rem; margin-bottom: 1rem; opacity:0.5;"></i>
+                <p>Your bag is empty.</p>
+            </div>
+        `;
+        cartTotalPrice.textContent = '₹0.00';
+        document.getElementById('btn-checkout').disabled = true;
+        return;
+    }
+
+    const total = state.cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    cartTotalPrice.textContent = `₹${total.toLocaleString()}`;
+    document.getElementById('btn-checkout').disabled = false;
+
+    cartItemsContainer.innerHTML = state.cart.map(item => `
+        <div class="cart-item">
+            <div class="cart-item-img" style="background-image: url('${getTileImage(item.id)}')"></div>
+            <div class="cart-item-details">
+                <h4>${item.name}</h4>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:0.5rem;">
+                    <span style="color:var(--text-secondary); font-size:0.9rem;">Qty: ${item.quantity}</span>
+                    <span class="cart-item-price">₹${item.price * item.quantity}</span>
+                </div>
+                <div class="cart-item-actions">
+                    <button class="remove-btn" onclick="removeFromCart(${item.id})"><i class="fas fa-trash-alt"></i> Remove</button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
 
 function addToCart(productId) {
     const product = state.products.find(p => p.id === productId);
@@ -321,40 +380,107 @@ function addToCart(productId) {
     const existingItem = state.cart.find(item => item.id === productId);
     if (existingItem) {
         if(existingItem.quantity >= product.stock) {
-            alert('Cannot add more than available stock.');
+            showToast('Cannot add more than available stock.', 'error');
             return;
         }
         existingItem.quantity += 1;
     } else {
         if(product.stock === 0) {
-            alert('Product is out of stock.');
+            showToast('Product is out of stock.', 'error');
             return;
         }
         state.cart.push({ ...product, quantity: 1 });
     }
 
-    saveCart();
-    updateNav();
-    alert(`Added ${product.name} to cart!`);
+    localStorage.setItem('cart', JSON.stringify(state.cart));
+    updateCartUI();
+    showToast(`${product.name} added to bag!`, 'success');
+    openCart();
 }
 
 function removeFromCart(productId) {
     state.cart = state.cart.filter(item => item.id !== productId);
-    saveCart();
-    updateNav();
-    renderCart();
-}
-
-function saveCart() {
     localStorage.setItem('cart', JSON.stringify(state.cart));
+    updateCartUI();
 }
 
-// Authentication
+async function checkout() {
+    if (!state.token) {
+        closeCart();
+        showToast('Please sign in to checkout', 'error');
+        authModal.classList.remove('hidden');
+        return;
+    }
+
+    const btn = document.getElementById('btn-checkout');
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+    btn.disabled = true;
+
+    try {
+        const orderItems = state.cart.map(item => ({ productId: item.id, quantity: item.quantity, price: item.price }));
+        const res = await fetch(`${API_BASE}/orders`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ items: orderItems })
+        });
+        
+        const data = await res.json();
+        if (data.success) {
+            const order = data.data;
+            // Simulated Razorpay UI Flow
+            showToast('Order created! Initializing secure payment...', 'info');
+            
+            setTimeout(() => {
+                // Verify mock payment after 2s delay
+                verifyPayment("pay_mock_" + Math.random().toString(36).substring(7), order.razorpayOrderId, "mock_signature");
+            }, 2000);
+            
+        } else {
+            showToast(data.message || 'Checkout failed', 'error');
+            btn.innerHTML = 'Checkout Securely <i class="fas fa-arrow-right"></i>';
+            btn.disabled = false;
+        }
+    } catch (err) {
+        showToast('Network error during checkout', 'error');
+        btn.innerHTML = 'Checkout Securely <i class="fas fa-arrow-right"></i>';
+        btn.disabled = false;
+    }
+}
+
+async function verifyPayment(paymentId, orderId, signature) {
+    try {
+        const res = await fetch(`${API_BASE}/payments/verify`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ razorpayPaymentId: paymentId, razorpayOrderId: orderId, razorpaySignature: signature })
+        });
+        const data = await res.json();
+        
+        closeCart();
+        showToast('Payment Simulation Complete. Order Recorded.', 'success');
+        
+        state.cart = [];
+        localStorage.setItem('cart', JSON.stringify([]));
+        updateCartUI();
+        
+        setActiveNav('nav-orders');
+        renderOrders();
+        
+    } catch(e) {
+        showToast('Payment verification failed.', 'error');
+        document.getElementById('btn-checkout').innerHTML = 'Checkout Securely <i class="fas fa-arrow-right"></i>';
+        document.getElementById('btn-checkout').disabled = false;
+    }
+}
+
+// ==================== AUTH & ADMIN ====================
+
 async function handleLogin(e) {
     e.preventDefault();
     const email = document.getElementById('login-email').value;
     const password = document.getElementById('login-password').value;
     const errorEl = document.getElementById('auth-error');
+    errorEl.textContent = 'Signing in...';
 
     try {
         const res = await fetch(`${API_BASE}/auth/login`, {
@@ -369,57 +495,58 @@ async function handleLogin(e) {
             state.user = data.data; 
             localStorage.setItem('token', state.token);
             localStorage.setItem('user', JSON.stringify(state.user));
-            authModal.classList.add('hidden');
+            closeModal('auth-modal');
             updateNav();
+            renderHome();
+            showToast('Welcome back!', 'success');
         } else {
-            errorEl.textContent = data.message || 'Login failed';
+            errorEl.textContent = data.message || 'Invalid credentials';
         }
-    } catch (err) {
-        errorEl.textContent = 'Network error';
-    }
+    } catch (err) { errorEl.textContent = 'Network error'; }
 }
 
 async function handleRegister(e) {
     e.preventDefault();
-    const name = document.getElementById('reg-name').value;
-    const email = document.getElementById('reg-email').value;
-    const mobile = document.getElementById('reg-mobile').value;
-    const password = document.getElementById('reg-password').value;
-    const role = document.getElementById('reg-role').value;
+    const payload = {
+        name: document.getElementById('reg-name').value,
+        email: document.getElementById('reg-email').value,
+        mobile: document.getElementById('reg-mobile').value,
+        password: document.getElementById('reg-password').value,
+        role: document.getElementById('reg-role').value
+    };
     const errorEl = document.getElementById('auth-error');
+    errorEl.textContent = 'Creating account...';
 
     try {
         const res = await fetch(`${API_BASE}/auth/register`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, email, mobile, password, role })
+            body: JSON.stringify(payload)
         });
         const data = await res.json();
 
         if (data.success) {
-            alert('Registration successful! Please login.');
-            document.getElementById('tab-login').click();
+            showToast('Account created! Please sign in.', 'success');
+            document.querySelector('.auth-tab[data-tab="login"]').click();
+            document.getElementById('login-email').value = payload.email;
         } else {
             errorEl.textContent = data.message || 'Registration failed';
         }
-    } catch (err) {
-        errorEl.textContent = 'Network error';
-    }
+    } catch (err) { errorEl.textContent = 'Network error'; }
 }
 
 function logout() {
-    state.token = null;
-    state.user = null;
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    state.token = null; state.user = null;
+    localStorage.removeItem('token'); localStorage.removeItem('user');
     updateNav();
+    setActiveNav('nav-home');
     renderHome();
+    showToast('Signed out successfully', 'info');
 }
 
-// Admin / Seller Logic
 function openProductModal(product = null) {
-    const errorEl = document.getElementById('product-error');
-    errorEl.textContent = '';
+    document.getElementById('product-error').textContent = '';
+    const form = document.getElementById('product-form');
     
     if (product) {
         document.getElementById('product-modal-title').textContent = 'Edit Product';
@@ -431,157 +558,52 @@ function openProductModal(product = null) {
         document.getElementById('prod-price').value = product.price;
         document.getElementById('prod-stock').value = product.stock;
     } else {
-        document.getElementById('product-modal-title').textContent = 'Create Product';
-        document.getElementById('product-form').reset();
+        document.getElementById('product-modal-title').textContent = 'Create New Product';
+        form.reset();
         document.getElementById('prod-id').value = '';
     }
-    
     productModal.classList.remove('hidden');
 }
 
 async function handleSaveProduct(e) {
     e.preventDefault();
     const id = document.getElementById('prod-id').value;
-    const name = document.getElementById('prod-name').value;
-    const brand = document.getElementById('prod-brand').value;
-    const size = document.getElementById('prod-size').value;
-    const description = document.getElementById('prod-desc').value;
-    const price = document.getElementById('prod-price').value;
-    const stock = document.getElementById('prod-stock').value;
-    const errorEl = document.getElementById('product-error');
-
-    const payload = { name, brand, size, description, price: parseFloat(price), stock: parseInt(stock) };
+    const payload = {
+        name: document.getElementById('prod-name').value,
+        brand: document.getElementById('prod-brand').value,
+        size: document.getElementById('prod-size').value,
+        description: document.getElementById('prod-desc').value,
+        price: parseFloat(document.getElementById('prod-price').value),
+        stock: parseInt(document.getElementById('prod-stock').value)
+    };
+    
     const method = id ? 'PUT' : 'POST';
     const url = id ? `${API_BASE}/products/${id}` : `${API_BASE}/products`;
 
     try {
-        const res = await fetch(url, {
-            method: method,
-            headers: getAuthHeaders(),
-            body: JSON.stringify(payload)
-        });
+        const res = await fetch(url, { method, headers: getAuthHeaders(), body: JSON.stringify(payload) });
         const data = await res.json();
 
         if (data.success) {
             closeModal('product-modal');
-            fetchProductsForAdmin(); 
+            showToast('Product saved successfully', 'success');
+            renderAdmin(); 
         } else {
-            errorEl.textContent = data.message || 'Failed to save product';
+            document.getElementById('product-error').textContent = data.message || 'Failed to save';
         }
-    } catch (err) {
-        errorEl.textContent = 'Network error';
-    }
+    } catch (err) { document.getElementById('product-error').textContent = 'Network error'; }
 }
 
 async function deleteProduct(id) {
-    if (!confirm('Are you sure you want to delete this product?')) return;
-    
+    if (!confirm('Are you sure you want to permanently delete this product?')) return;
     try {
-        const res = await fetch(`${API_BASE}/products/${id}`, {
-            method: 'DELETE',
-            headers: getAuthHeaders()
-        });
+        const res = await fetch(`${API_BASE}/products/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
         const data = await res.json();
         if (data.success) {
-            fetchProductsForAdmin();
-        } else {
-            alert('Failed to delete product: ' + data.message);
-        }
-    } catch(e) {
-        alert('Network error');
-    }
+            showToast('Product deleted', 'success');
+            renderAdmin();
+        } else { showToast(data.message, 'error'); }
+    } catch(e) { showToast('Network error', 'error'); }
 }
 
-// Checkout and Payment Flow
-async function checkout() {
-    if (!state.token) {
-        alert('Please login to checkout');
-        authModal.classList.remove('hidden');
-        return;
-    }
-
-    if (state.cart.length === 0) return;
-
-    try {
-        const orderItems = state.cart.map(item => ({
-            productId: item.id,
-            quantity: item.quantity,
-            price: item.price
-        }));
-
-        const res = await fetch(`${API_BASE}/orders`, {
-            method: 'POST',
-            headers: getAuthHeaders(),
-            body: JSON.stringify({ items: orderItems })
-        });
-        
-        const data = await res.json();
-        if (data.success) {
-            // Initiate Mock Razorpay Flow
-            const order = data.data;
-            const razorpayOrderId = order.razorpayOrderId;
-            
-            // To simulate production Razorpay UI without real keys, we prompt the user
-            // In a real scenario with Razorpay keys, we would do:
-            /*
-            var options = {
-                "key": "YOUR_RAZORPAY_KEY", 
-                "amount": order.totalAmount * 100, 
-                "currency": "INR",
-                "name": "SuperTiles Ecommerce",
-                "description": "Order Payment",
-                "order_id": razorpayOrderId,
-                "handler": function (response){
-                    verifyPayment(response.razorpay_payment_id, response.razorpay_order_id, response.razorpay_signature);
-                }
-            };
-            var rzp1 = new Razorpay(options);
-            rzp1.open();
-            */
-            
-            alert(`Order Created Successfully! (Mocking Razorpay UI...)\nOrder ID: ${order.id}\nProceeding to dummy payment verification...`);
-            
-            // Simulate calling the verification endpoint with dummy data
-            // It will fail on the backend due to invalid signature, but the order remains
-            verifyPayment("dummy_payment_id", razorpayOrderId, "dummy_signature");
-            
-        } else {
-            alert('Failed to place order: ' + data.message);
-        }
-    } catch (err) {
-        alert('Network error during checkout');
-    }
-}
-
-async function verifyPayment(paymentId, orderId, signature) {
-    try {
-        const res = await fetch(`${API_BASE}/payments/verify`, {
-            method: 'POST',
-            headers: getAuthHeaders(),
-            body: JSON.stringify({
-                razorpayPaymentId: paymentId,
-                razorpayOrderId: orderId,
-                razorpaySignature: signature
-            })
-        });
-        const data = await res.json();
-        
-        // Since we are using dummy data, signature verification WILL fail
-        if (data.success) {
-            alert('Payment Successful!');
-        } else {
-            alert(`Payment Simulation Complete.\nStatus: ${data.message} (Expected with dummy signature). Your order was recorded.`);
-        }
-        
-        state.cart = [];
-        saveCart();
-        updateNav();
-        renderOrders();
-        
-    } catch(e) {
-        alert('Payment verification request failed.');
-    }
-}
-
-// Start app
 init();
