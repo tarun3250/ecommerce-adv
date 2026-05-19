@@ -29,3 +29,92 @@ services:
     image: redis:alpine
     ports:
       - "6379:6379"
+
+
+
+
+
+
+# pipeline {
+
+#     agent any
+
+#     environment {
+#         IMAGE_NAME = "tarun3250/ecommerce-app"
+#         CONTAINER_NAME = "ecommerce-app"
+#     }
+
+#     tools {
+#         maven 'Maven'
+#     }
+
+#     stages {
+
+#         stage('Clone Repository') {
+#             steps {
+#                 git branch: 'main',
+#                 url: 'https://github.com/yourusername/Ecommerce-Springboot-main.git'
+#             }
+#         }
+
+#         stage('Build Maven Project') {
+#             steps {
+#                 sh 'mvn clean package -DskipTests'
+#             }
+#         }
+
+#         stage('Run Tests') {
+#             steps {
+#                 sh 'mvn test'
+#             }
+#         }
+
+#         stage('Build Docker Image') {
+#             steps {
+#                 sh 'docker build -t $IMAGE_NAME .'
+#             }
+#         }
+
+#         stage('DockerHub Login') {
+#             steps {
+
+#                 withCredentials([usernamePassword(
+#                     credentialsId: 'dockerhub-creds',
+#                     usernameVariable: 'DOCKER_USER',
+#                     passwordVariable: 'DOCKER_PASS'
+#                 )]) {
+
+#                     sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
+#                 }
+#             }
+#         }
+
+#         stage('Push Docker Image') {
+#             steps {
+#                 sh 'docker push $IMAGE_NAME'
+#             }
+#         }
+
+#         stage('Deploy Application') {
+#             steps {
+
+#                 sh '''
+#                 docker compose down
+
+#                 docker compose up -d --build
+#                 '''
+#             }
+#         }
+#     }
+
+#     post {
+
+#         success {
+#             echo 'E-commerce application deployed successfully!'
+#         }
+
+#         failure {
+#             echo 'Pipeline failed!'
+#         }
+#     }
+# }

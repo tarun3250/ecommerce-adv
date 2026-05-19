@@ -152,11 +152,80 @@ Access:
 
 ---
 
+## 🚀 CI/CD Pipeline (Jenkins & Kubernetes)
+
+A fully automated CI/CD pipeline is implemented using **Jenkins**. It automates the process of building the Java application, containerizing it with Docker, pushing it to Docker Hub, and deploying it to a local Kubernetes (Minikube) cluster.
+
+### 📋 Prerequisites
+Ensure the following tools are installed on the Jenkins server (or locally, if running together):
+- Jenkins
+- Docker
+- Java 17 & Maven
+- Minikube
+- `kubectl`
+
+### 🔌 Required Jenkins Plugins
+- **Docker Pipeline** & **Docker plugin**: For building and pushing images.
+- **Credentials Binding Plugin**: To securely handle Docker Hub credentials.
+- **Workspace Cleanup Plugin**: For `cleanWs()` support.
+
+### 🔑 Jenkins Credential Setup
+1. Open Jenkins Dashboard → **Manage Jenkins** → **Credentials**.
+2. Click **System** → **Global credentials (unrestricted)** → **Add Credentials**.
+3. Set **Kind** to **Username with password**.
+4. Set **Username** to your Docker Hub username.
+5. Set **Password** to your Docker Hub password (or access token).
+6. Set **ID** strictly to `docker-hub-credentials`.
+7. Click **Create**.
+
+### ⚙️ Pipeline Explanation
+The `Jenkinsfile` defines a declarative pipeline with the following stages:
+1. **Checkout**: Pulls the latest source code from the branch.
+2. **Build & Test**: Builds the Spring Boot `.jar` via `./mvnw clean package -DskipTests`.
+3. **Docker Build**: Builds the image and tags it with both `:latest` and `:${BUILD_NUMBER}`.
+4. **Docker Login & Push**: Authenticates using the stored Jenkins credentials and pushes the newly built images to Docker Hub.
+5. **Update Kubernetes Deployment**: Uses `kubectl set image` to instantly update the running Minikube cluster with the latest version.
+6. **Verify Deployment**: Tracks the deployment status using `kubectl rollout status` and prints active pods and services.
+
+### 🏃‍♂️ How to Run the Jenkins Pipeline
+1. In Jenkins, create a **New Item** → **Pipeline** → **OK**.
+2. Under the **Pipeline** section, choose **Pipeline script from SCM**.
+3. Set **SCM** to **Git** and provide your repository URL.
+4. Ensure the **Script Path** is set to `Jenkinsfile`.
+5. Save and click **Build Now**.
+
+### 🌐 Minikube Connection Setup (for Jenkins User)
+Since Jenkins executes commands as the `jenkins` user, you must ensure it can communicate with Minikube:
+```bash
+# Add jenkins user to docker group
+sudo usermod -aG docker jenkins
+
+# Copy minikube config to jenkins user
+sudo mkdir -p /var/lib/jenkins/.kube /var/lib/jenkins/.minikube
+sudo cp -r ~/.kube/config /var/lib/jenkins/.kube/
+sudo cp -r ~/.minikube/* /var/lib/jenkins/.minikube/
+sudo chown -R jenkins:jenkins /var/lib/jenkins/.kube /var/lib/jenkins/.minikube
+```
+
+### 🔍 Verification Commands
+Once the pipeline succeeds, verify your updated deployment locally:
+```bash
+# Check rollout status
+kubectl rollout status deployment/ecommerce-backend
+
+# View pods using the new image tag
+kubectl get pods
+
+# View the deployment details
+kubectl describe deployment ecommerce-backend
+```
+
+---
+
 ## 🔮 Future Enhancements
 
 * React frontend integration
 * Microservices architecture
-* CI/CD pipeline (GitHub Actions)
 * Rate limiting
 
 ---
