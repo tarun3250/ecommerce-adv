@@ -133,13 +133,13 @@ function openCart() { cartDrawer.classList.add('active'); cartOverlay.classList.
 function closeCart() { cartDrawer.classList.remove('active'); cartOverlay.classList.remove('active'); }
 
 // Helpers for realistic images based on product ID
-function getTileImage(id) {
+function getProductImage(id) {
     const images = [
-        'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=500&q=80',
-        'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=500&q=80',
-        'https://images.unsplash.com/photo-1615873968403-89e068629265?auto=format&fit=crop&w=500&q=80',
-        'https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=500&q=80',
-        'https://images.unsplash.com/photo-1600566753376-12c8ab7fb75b?auto=format&fit=crop&w=500&q=80'
+        'https://images.unsplash.com/photo-1546868871-7041f2a55e12?auto=format&fit=crop&w=500&q=80',
+        'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=500&q=80',
+        'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=500&q=80',
+        'https://images.unsplash.com/photo-1583394838336-acd977736f90?auto=format&fit=crop&w=500&q=80',
+        'https://images.unsplash.com/photo-1484704849700-f032a568e944?auto=format&fit=crop&w=500&q=80'
     ];
     return images[id % images.length];
 }
@@ -151,7 +151,7 @@ async function renderHome() {
         <div class="hero animate-fade-up">
             <div class="hero-content glass-panel" style="padding: 3rem; background: rgba(9,9,11,0.6);">
                 <h2>Redefine Your Space</h2>
-                <p>Discover our exclusive collection of premium ceramic and porcelain tiles, designed to bring elegance and durability to modern homes.</p>
+                <p>Discover our exclusive collection of premium tech and lifestyle essentials, designed to bring elegance and innovation to your modern life.</p>
                 <button class="btn btn-primary btn-glow" onclick="document.getElementById('products-section').scrollIntoView({behavior: 'smooth'})">Explore Collection <i class="fas fa-arrow-down"></i></button>
             </div>
         </div>
@@ -189,13 +189,13 @@ async function renderHome() {
 
             grid.innerHTML = state.products.map((product, index) => `
                 <div class="product-card animate-fade-up" style="animation-delay: ${index * 0.1}s">
-                    <div class="product-image" style="background-image: url('${getTileImage(product.id)}')">
+                    <div class="product-image" style="background-image: url('${getProductImage(product.id)}')">
                         ${product.stock === 0 ? '<span class="product-badge" style="background:var(--error)">Sold Out</span>' : ''}
                     </div>
                     <div class="product-info">
                         <span class="product-brand">${product.brand || 'Premium'}</span>
                         <h3>${product.name}</h3>
-                        <p class="product-desc">${product.description || 'Premium quality material designed for modern aesthetics.'}</p>
+                        <p class="product-desc">${product.description || 'Premium tech engineered for modern lifestyles.'}</p>
                         <div class="product-footer">
                             <span class="product-price">₹${product.price}</span>
                             <button class="btn btn-primary" ${product.stock === 0 ? 'disabled' : ''} onclick="addToCart(${product.id})">
@@ -249,7 +249,7 @@ async function renderOrders() {
                         ${order.items.map(item => `
                             <div style="display:flex; justify-content:space-between; align-items:center;">
                                 <div style="display:flex; align-items:center; gap:1rem;">
-                                    <div style="width:40px; height:40px; border-radius:8px; background:url('${getTileImage(item.productId)}') center/cover;"></div>
+                                    <div style="width:40px; height:40px; border-radius:8px; background:url('${getProductImage(item.productId)}') center/cover;"></div>
                                     <span>${item.productName} <span style="color:var(--text-secondary)">x${item.quantity}</span></span>
                                 </div>
                                 <span>₹${item.price * item.quantity}</span>
@@ -308,7 +308,7 @@ async function renderAdmin() {
                             <tr>
                                 <td>
                                     <div style="display:flex; align-items:center; gap:1rem;">
-                                        <div style="width:40px; height:40px; border-radius:8px; background:url('${getTileImage(p.id)}') center/cover;"></div>
+                                        <div style="width:40px; height:40px; border-radius:8px; background:url('${getProductImage(p.id)}') center/cover;"></div>
                                         <span style="font-weight:500;">${p.name}</span>
                                     </div>
                                 </td>
@@ -358,7 +358,7 @@ function updateCartUI() {
 
     cartItemsContainer.innerHTML = state.cart.map(item => `
         <div class="cart-item">
-            <div class="cart-item-img" style="background-image: url('${getTileImage(item.id)}')"></div>
+            <div class="cart-item-img" style="background-image: url('${getProductImage(item.id)}')"></div>
             <div class="cart-item-details">
                 <h4>${item.name}</h4>
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-top:0.5rem;">
